@@ -117,6 +117,9 @@ module.exports = {
             url: process.env.TURN_SERVER_URL,
             username: process.env.TURN_SERVER_USERNAME,
             credential: process.env.TURN_SERVER_CREDENTIAL,
+            secret: process.env.TURN_SECRET || '',
+            usernamePart: process.env.TURN_USERNAME_PART || 'mirotalk',
+            credentialLifetime: parseInt(process.env.TURN_CREDENTIAL_LIFETIME || '3600', 10),
         },
     },
 

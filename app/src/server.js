@@ -61,6 +61,7 @@ const helmet = require('helmet');
 const path = require('path');
 const axios = require('axios');
 const jwt = require('jsonwebtoken');
+const crypto = require('crypto');
 const app = express();
 const fs = require('fs');
 const checkXSS = require('./xss.js');
@@ -195,8 +196,21 @@ const turnServerEnabled = config.webrtc.turn.enabled;
 // Stun is mandatory for not internal network
 if (stunServerEnabled && stunServerUrl) iceServers.push({ urls: stunServerUrl });
 // Turn is recommended if direct peer to peer connection is not possible
-if (turnServerEnabled && turnServerUrl && turnServerUsername && turnServerCredential) {
-    iceServers.push({ urls: turnServerUrl, username: turnServerUsername, credential: turnServerCredential });
+// If TURN_SECRET is provided, we'll use dynamic credentials via API
+// Otherwise, fall back to static credentials if provided
+if (turnServerEnabled && turnServerUrl) {
+    const turnSecret = config.webrtc.turn.secret;
+    if (!turnSecret && turnServerUsername && turnServerCredential) {
+        // Static credentials
+        iceServers.push({ urls: turnServerUrl, username: turnServerUsername, credential: turnServerCredential });
+        log.debug('Using static TURN credentials');
+    } else if (turnSecret) {
+        // When using TURN_SECRET, we only send STUN servers initially
+        // The client will fetch TURN credentials via API
+        log.debug('Using dynamic TURN credentials via API endpoint');
+    } else {
+        log.warn('TURN server is enabled but no credentials are provided (neither static nor secret)');
+    }
 }
 
 // Test Stun and Turn connection with query params
@@ -786,6 +800,46 @@ app.get('/buttons', (req, res) => {
 // UI brand configuration
 app.get('/brand', (req, res) => {
     res.status(200).json({ message: config.brand && brandHtmlInjection ? config.brand : false });
+});
+
+// API endpoint for dynamic TURN credentials
+app.get('/api/turn-credentials', (req, res) => {
+    const turnSecret = config.webrtc.turn.secret;
+    const turnUrl = config.webrtc.turn.url;
+
+    if (!turnSecret || !turnUrl) {
+        log.warn('TURN_SECRET or TURN_SERVER_URL not set. Cannot provide TURN credentials.');
+        return res.status(200).json({}); // Return OK but empty, client must check content
+    }
+
+    if (!turnUrl.startsWith('turn:') && !turnUrl.startsWith('turns:')) {
+        log.error(`Invalid TURN_SERVER_URL format: ${turnUrl}. Must start with turn: or turns:`);
+        return res.status(500).json({ error: 'Invalid TURN server URL configured on the backend.' });
+    }
+
+    try {
+        const turnUsernamePart = config.webrtc.turn.usernamePart;
+        const credentialLifetime = config.webrtc.turn.credentialLifetime;
+
+        // Create expiry timestamp (seconds since epoch)
+        const expiryTimestamp = Math.floor(Date.now() / 1000) + credentialLifetime;
+        const username = `${expiryTimestamp}:${turnUsernamePart}`;
+
+        // Generate the credential using HMAC-SHA1
+        const hmac = crypto.createHmac('sha1', turnSecret);
+        hmac.update(username);
+        const credential = hmac.digest('base64');
+
+        log.debug(`Generated TURN credentials for user part "${turnUsernamePart}", expiring in ${credentialLifetime} seconds`);
+        res.status(200).json({
+            urls: turnUrl,
+            username: username,
+            credential: credential,
+        });
+    } catch (error) {
+        log.error('Error generating TURN credentials:', error);
+        res.status(500).json({ error: 'Internal server error generating TURN credentials' });
+    }
 });
 
 // Join roomId redirect to /join?room=roomId

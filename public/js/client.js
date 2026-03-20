@@ -2450,8 +2450,19 @@ async function handleAddPeer(config) {
 
     console.log('iceServers', iceServers[0]);
 
+    // Get dynamic TURN credentials
+    let finalIceServers = [...iceServers]; // Start with the base STUN servers
+    const dynamicTurnServer = await fetchTurnCredentials();
+    if (dynamicTurnServer) {
+        finalIceServers.push(dynamicTurnServer);
+        console.log('Added dynamic TURN server to ICE configuration.');
+    } else {
+        console.warn('Proceeding with PeerConnection using only base ICE servers (STUN).');
+    }
+    console.log('Final ICE Servers for new PeerConnection:', finalIceServers);
+
     // https://developer.mozilla.org/en-US/docs/Web/API/RTCPeerConnection
-    const peerConnection = new RTCPeerConnection({ iceServers: iceServers });
+    const peerConnection = new RTCPeerConnection({ iceServers: finalIceServers });
     peerConnections[peer_id] = peerConnection;
 
     allPeers = peers;
