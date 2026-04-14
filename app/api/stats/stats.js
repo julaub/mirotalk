@@ -5,7 +5,11 @@ async function getStats() {
         // Use dynamic import with await
         const { default: fetch } = await import('node-fetch');
 
-        const API_KEY_SECRET = 'mirotalkp2p_default_secret';
+        const API_KEY_SECRET = process.env.API_KEY_SECRET;
+        if (!API_KEY_SECRET) {
+            console.error('Error: API_KEY_SECRET environment variable is not set.');
+            process.exit(1);
+        }
         const MIROTALK_URL = 'https://p2p.mirotalk.com/api/v1/stats';
         //const MIROTALK_URL = 'http://localhost:3000/api/v1/stats';
 

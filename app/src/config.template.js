@@ -92,7 +92,7 @@ module.exports = {
     // API
     // ==========================================
     api: {
-        keySecret: process.env.API_KEY_SECRET || 'mirotalkp2p_default_secret',
+        keySecret: process.env.API_KEY_SECRET || '',
         disabled: parseJsonEnv(process.env.API_DISABLED, ['token', 'meetings']),
     },
 

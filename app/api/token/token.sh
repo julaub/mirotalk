@@ -1,6 +1,10 @@
 #!/bin/bash
 
-API_KEY_SECRET="mirotalkp2p_default_secret"
+API_KEY_SECRET="${API_KEY_SECRET}"
+if [ -z "$API_KEY_SECRET" ]; then
+    echo "Error: API_KEY_SECRET environment variable is not set."
+    exit 1
+fi
 MIROTALK_URL="https://p2p.mirotalk.com/api/v1/token"
 #MIROTALK_URL="http://localhost:3000/api/v1/token"
 
