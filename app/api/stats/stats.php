@@ -1,6 +1,9 @@
 <?php
 
-$API_KEY_SECRET = "mirotalkp2p_default_secret";
+$API_KEY_SECRET = getenv("API_KEY_SECRET");
+if (!$API_KEY_SECRET) {
+    die("Error: API_KEY_SECRET environment variable is not set.\n");
+}
 $MIROTALK_URL = "https://p2p.mirotalk.com/api/v1/stats";
 //$MIROTALK_URL = "http://localhost:3000/api/v1/stats";
 

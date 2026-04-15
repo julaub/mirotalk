@@ -1,8 +1,12 @@
+import os
 # pip3 install requests
 import requests
 import json
 
-API_KEY_SECRET = "mirotalkp2p_default_secret"
+API_KEY_SECRET = os.getenv("API_KEY_SECRET")
+if not API_KEY_SECRET:
+    print("Error: API_KEY_SECRET environment variable is not set.")
+    exit(1)
 MIROTALK_URL = "https://p2p.mirotalk.com/api/v1/meetings"
 #MIROTALK_URL = "http://localhost:3000/api/v1/meetings"
 

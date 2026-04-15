@@ -5,7 +5,7 @@
 To initiate a meeting, send an HTTP request to MiroTalk’s server with your API key. Replace the default secret key in `.env` with your own.
 
 ```bash
-API_KEY_SECRET=mirotalkp2p_default_secret
+API_KEY_SECRET=your_api_key_secret_here
 ```
 
 Use the following examples to make API calls:
