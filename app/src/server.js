@@ -213,6 +213,26 @@ if (turnServerEnabled && turnServerUrl) {
     }
 }
 
+// Turn token management for securing /api/turn-credentials
+// Only peers with an active Socket.IO connection receive a valid token
+const turnTokens = new Map(); // tokenId -> { expires: timestamp, used: boolean }
+
+/**
+ * Generate a short-lived, single-use HMAC token for TURN credential access.
+ * Tokens are delivered via Socket.IO addPeer events and validated on the HTTP endpoint.
+ * @returns {string} token in format "tokenId:expires:signature"
+ */
+function generateTurnToken() {
+    const tokenId = crypto.randomBytes(16).toString('hex');
+    const expires = Date.now() + 30000; // 30 seconds TTL
+    const payload = `${tokenId}:${expires}`;
+    const signature = crypto.createHmac('sha256', jwtCfg.JWT_KEY).update(payload).digest('hex');
+    turnTokens.set(tokenId, { expires, used: false });
+    // Auto-cleanup after TTL + 5s grace period
+    setTimeout(() => turnTokens.delete(tokenId), 35000);
+    return `${payload}:${signature}`;
+}
+
 // Test Stun and Turn connection with query params
 // const testStunTurn = host + '/icetest?iceServers=' + JSON.stringify(iceServers);
 const testStunTurn = host + '/icetest';
@@ -802,8 +822,33 @@ app.get('/brand', (req, res) => {
     res.status(200).json({ message: config.brand && brandHtmlInjection ? config.brand : false });
 });
 
-// API endpoint for dynamic TURN credentials
+// API endpoint for dynamic TURN credentials (protected by turn token)
 app.get('/api/turn-credentials', (req, res) => {
+    // Validate turn token (delivered to clients via Socket.IO addPeer event)
+    const token = req.query.token || req.headers['x-turn-token'];
+    if (!token) {
+        log.debug('TURN credentials request rejected: missing token', { ip: getIP(req) });
+        return res.status(403).json({ error: 'Unauthorized: missing turn token' });
+    }
+    const parts = token.split(':');
+    if (parts.length !== 3) {
+        log.debug('TURN credentials request rejected: invalid token format', { ip: getIP(req) });
+        return res.status(403).json({ error: 'Unauthorized: invalid turn token format' });
+    }
+    const [tokenId, expiresStr, signature] = parts;
+    const payload = `${tokenId}:${expiresStr}`;
+    const expectedSig = crypto.createHmac('sha256', jwtCfg.JWT_KEY).update(payload).digest('hex');
+    if (signature !== expectedSig) {
+        log.debug('TURN credentials request rejected: invalid signature', { ip: getIP(req) });
+        return res.status(403).json({ error: 'Unauthorized: invalid turn token' });
+    }
+    const storedToken = turnTokens.get(tokenId);
+    if (!storedToken || storedToken.used || Date.now() > storedToken.expires) {
+        log.debug('TURN credentials request rejected: expired or already used token', { ip: getIP(req) });
+        return res.status(403).json({ error: 'Unauthorized: expired or already used turn token' });
+    }
+    storedToken.used = true; // Mark as used (single-use)
+
     const turnSecret = config.webrtc.turn.secret;
     const turnUrl = config.webrtc.turn.url;
 
@@ -2017,6 +2062,7 @@ io.sockets.on('connect', async (socket) => {
                 peers: peers[channel],
                 should_create_offer: false,
                 iceServers: iceServers,
+                turnToken: generateTurnToken(),
             });
             // offer true
             socket.emit('addPeer', {
@@ -2024,6 +2070,7 @@ io.sockets.on('connect', async (socket) => {
                 peers: peers[channel],
                 should_create_offer: true,
                 iceServers: iceServers,
+                turnToken: generateTurnToken(),
             });
             log.debug('[' + socket.id + '] emit addPeer [' + id + ']');
         }

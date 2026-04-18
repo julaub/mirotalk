@@ -2435,7 +2435,7 @@ async function joinToChannel() {
 async function handleAddPeer(config) {
     //console.log("addPeer", JSON.stringify(config));
 
-    const { peer_id, should_create_offer, iceServers, peers } = config;
+    const { peer_id, should_create_offer, iceServers, peers, turnToken } = config;
 
     const peer_name = peers[peer_id]['peer_name'];
     const peer_video = peers[peer_id]['peer_video'];
@@ -2450,9 +2450,9 @@ async function handleAddPeer(config) {
 
     console.log('iceServers', iceServers[0]);
 
-    // Get dynamic TURN credentials
+    // Get dynamic TURN credentials using the token delivered via Socket.IO
     let finalIceServers = [...iceServers]; // Start with the base STUN servers
-    const dynamicTurnServer = await fetchTurnCredentials();
+    const dynamicTurnServer = await fetchTurnCredentials(turnToken);
     if (dynamicTurnServer) {
         finalIceServers.push(dynamicTurnServer);
         console.log('Added dynamic TURN server to ICE configuration.');
