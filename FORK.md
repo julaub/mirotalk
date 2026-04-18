@@ -12,9 +12,12 @@ This fork generates **time-limited HMAC-SHA1 credentials** on the fly using a sh
 
 ## How it works
 
-1. **Server** exposes `/api/turn-credentials` that generates temporary credentials using `TURN_SECRET`
-2. **Client** calls this endpoint before each peer connection to get fresh credentials
-3. **coturn** validates them using the same shared secret (`static-auth-secret` in `turnserver.conf`)
+1. When a peer joins a room via Socket.IO, the **server generates a short-lived, single-use HMAC token** and includes it in the `addPeer` event
+2. **Client** uses this token to authenticate the `GET /api/turn-credentials` request
+3. **Server** validates the token (HMAC signature, expiry, single-use) and returns time-limited TURN credentials
+4. **coturn** validates the TURN credentials using the same shared secret (`static-auth-secret` in `turnserver.conf`)
+
+> **Security**: The `/api/turn-credentials` endpoint is **not publicly accessible**. Only peers with an active Socket.IO connection to a room can obtain a valid token. Tokens expire in 30 seconds and are single-use.
 
 ## Configuration
 

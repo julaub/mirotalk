@@ -1,10 +1,15 @@
 /**
  * Fetch dynamic TURN credentials from the server
+ * @param {string} turnToken - Short-lived HMAC token delivered via Socket.IO addPeer event
  * @returns {Promise<RTCIceServer | null>} A promise that resolves to the TURN server config object or null if failed/unavailable.
  */
-async function fetchTurnCredentials() {
+async function fetchTurnCredentials(turnToken) {
     try {
-        const response = await fetch('/api/turn-credentials');
+        if (!turnToken) {
+            console.warn('No turn token provided, cannot fetch TURN credentials.');
+            return null;
+        }
+        const response = await fetch(`/api/turn-credentials?token=${encodeURIComponent(turnToken)}`);
         if (!response.ok) {
             // Handle non-2xx responses (like 500, 503 errors from the backend)
             console.error(`Failed to fetch TURN credentials: ${response.status} ${response.statusText}`);
